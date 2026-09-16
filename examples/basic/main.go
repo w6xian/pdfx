@@ -145,7 +145,7 @@ func assetPath(dir, name string) string {
 // sampleData 出厂检验报告样例（实际由 RPC/JSON 传入）
 func sampleData() *Data {
 	return &Data{
-		Company:     "重庆市永川区崔婆婆味品有限公司",
+		Company:     "重庆市永川区崔婆婆调味品有限公司",
 		Title:       defTitle,
 		Number:      "JC-2026-07-23-001",
 		ProductName: "400gxxxxxx",
