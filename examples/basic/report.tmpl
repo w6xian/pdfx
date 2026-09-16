@@ -1,0 +1,89 @@
+<pdf paper="A4" padding="14mm 12mm 14mm 12mm">
+  <style>
+    pdf       { font-family: songti; font-size: 12pt; }
+    .title    { font-family: heiti; font-size: 18pt; text-align: center; }
+    .subtitle { font-family: heiti; font-size: 13pt; text-align: center; }
+    .number   { text-align: left; }
+    .sign     { text-align: left; }
+    table     { font-size: 10.5pt; text-align: center; border-color: #333; }
+    .head     { font-family: heiti; text-align: center; }
+    .label    { font-family: heiti; text-align: center; font-size: 12pt;}
+    .value    { text-align: center; padding: 0 3px; font-size: 13pt;}
+    .center   { text-align: center; }
+    .concl    { text-align: left; padding: 2mm 3mm;font-size: 14pt; }
+    .seal     { opacity: 0.9;}
+    .small    { font-size: 6pt; }
+  </style>
+
+  <row class="title"    style="height:8mm; line-height:8mm;">{{esc .Company}}</row>
+  <row class="subtitle" style="height:6mm;  line-height:6mm;">{{esc .Title}}</row>
+  <space height="6mm" />
+  <row class="number"   style="height:6mm;  line-height:6mm;">编 号：{{esc .Number}}</row>
+  <table border="1pt" cellpadding="1mm" style="width:100%; border-color: #333;">
+    <tr style="height:12mm;">
+      <td class="label" colspan="2">产品名称</td>
+      <td class="value">{{esc .ProductName}}</td>
+      <td class="label">型号规格</td>
+      <td class="value">{{esc .Model}}</td>
+    </tr>
+    <tr style="height:12mm;">
+      <td class="label" colspan="2">抽样人</td>
+      <td class="value">{{esc .Sampler}}</td>
+      <td class="label">抽样地点</td>
+      <td class="value">{{esc .SamplePlace}}</td>
+    </tr>
+    <tr style="height:12mm;">
+      <td class="label" colspan="2">抽样日期</td>
+      <td class="value">{{esc .SampleDate}}</td>
+      <td class="label">检验日期</td>
+      <td class="value">{{esc .TestDate}}</td>
+    </tr>
+    <tr style="height:12mm;">
+      <td class="label" colspan="2">生产日期</td>
+      <td class="value">{{esc .ProductDate}}</td>
+      <td class="label">保质期至</td>
+      <td class="value">{{esc .ShelfDate}}</td>
+    </tr>
+    <tr style="height:12mm;">
+      <td class="label" colspan="2">抽样数量</td>
+      <td class="value">{{esc .SampleQty}}</td>
+      <td class="label">净含量</td>
+      <td class="value">{{esc .NetWeight}}</td>
+    </tr>
+    <tr style="height:12mm;">
+      <td class="label" colspan="2">检验依据</td>
+      <td class="value" colspan="3">{{esc .Basis}}</td>
+    </tr>
+
+    <tr class="head" style="height:12mm;">
+      <th colspan="2" width="28mm">检验项目</th>
+      <th width="58mm">标准规定</th>
+      <th width="36mm">检验结果</th>
+      <th width="50mm">单项结论</th>
+    </tr>
+
+    {{range .Rows}}
+    <tr style="height:12mm;">
+      {{if .Group}}<td class="center" rowspan="{{.Span}}">{{esc .Group}}</td>{{end}}
+      {{if .Sub}}<td class="value">{{esc .Sub}}</td>{{end}}
+      {{if .Name}}<td class="label" colspan="2">{{esc .Name}}</td>{{end}}
+      <td class="value">{{esc .Standard}}</td>
+      <td class="center">{{esc .Result}}</td>
+      <td class="center">{{esc .Verdict}}</td>
+    </tr>
+    {{end}}
+
+    <tr style="height:26mm;">
+      <td class="concl" colspan="5">{{esc .ConclusionText}}</td>
+    </tr>
+  </table>
+
+  <space height="6mm" />
+  <row class="sign" style="height:12mm; line-height:12mm;">
+    <col width="50%">审 核：{{esc .Reviewer}}</col>
+    <col width="50%" align="right" style="padding:0 20mm;">检验员：{{esc .Inspector}}</col>
+  </row>
+  {{if .Checker}}<img src="{{.Checker}}" width="20mm" right="12mm" bottom="30mm" />{{end}}
+  {{if .ReviewerSig}}<img src="{{.ReviewerSig}}" width="20mm" left="36mm" bottom="30mm" />{{end}}
+  {{if .Seal}}<img class="seal" src="{{.Seal}}" width="52mm" right="16mm" bottom="38mm" />{{end}}
+</pdf>
