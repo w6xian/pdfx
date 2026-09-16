@@ -1,6 +1,6 @@
 module github.com/w6xian/pdfx
 
-go 1.27.0
+go 1.26.0
 
 require (
 	github.com/signintech/gopdf v0.38.1
