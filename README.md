@@ -47,6 +47,36 @@ if err := p.DrawHTML(htmlStr); err != nil {
 }
 ```
 
+输出到内存（HTTP 直接下载）：
+
+```go
+// 方式一：一次性拿到字节
+data, err := p.DrawHTMLBytes(htmlStr)  // []byte，可直接 w.Write(data)
+
+// 方式二：指定 writer，例如 http.ResponseWriter / *bytes.Buffer
+p2 := pdfx.NewPDFPaper(pdfx.WithWriter(w))
+p2.DrawHTML(htmlStr)                   // 设置 WithWriter 后忽略 WithSavePath
+```
+
+HTTP 下载示例：
+
+```go
+http.HandleFunc("/report.pdf", func(w http.ResponseWriter, r *http.Request) {
+    data, err := p.DrawHTMLBytes(htmlStr)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    w.Header().Set("Content-Type", "application/pdf")
+    w.Header().Set("Content-Disposition", `attachment; filename="report.pdf"`)
+    w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+    w.Write(data)
+})
+```
+
+完整示例见 `examples/basic`（`go run ./examples/basic -http :8080`，访问
+`/download/stream` 或 `/download/bytes` 直接下载）。
+
 模板能力：
 
 ```go

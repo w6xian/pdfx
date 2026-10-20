@@ -1,7 +1,9 @@
 package pdfx
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -32,6 +34,14 @@ func WithPadding(padding string) PDFOption {
 func WithSavePath(savePath string) PDFOption {
 	return func(p *PDFPaper) {
 		p.savePath = savePath
+	}
+}
+
+// WithWriter 指定 PDF 输出目标，可以是 *bytes.Buffer、http.ResponseWriter 等。
+// 设置后 PDF 不落盘，WithSavePath 被忽略；适合 HTTP 直接下载。
+func WithWriter(w io.Writer) PDFOption {
+	return func(p *PDFPaper) {
+		p.writer = w
 	}
 }
 
@@ -71,6 +81,7 @@ type PDFPaper struct {
 	style    string
 	padding  string
 	savePath string
+	writer   io.Writer
 	fonts    []Font
 	fontSize float64
 	aliases  map[string]tagAlias
@@ -99,9 +110,9 @@ func NewPDFPaper(opts ...PDFOption) *PDFPaper {
 	return p
 }
 
-// DrawHTML 渲染一段 HTML 字符串
+// DrawHTML 渲染一段 HTML 字符串，输出到 WithWriter 指定的目标，未指定则写文件
 func (p *PDFPaper) DrawHTML(html string) error {
-	return p._draw_pdf(html)
+	return p._draw_pdf(p.writer, html)
 }
 
 // DrawFile 读取 HTML 文件后渲染
@@ -111,7 +122,17 @@ func (p *PDFPaper) DrawFile(html string) error {
 		log.Print(err.Error())
 		return err
 	}
-	return p._draw_pdf(string(htmlTableBytes))
+	return p._draw_pdf(p.writer, string(htmlTableBytes))
+}
+
+// DrawHTMLBytes 渲染一段 HTML 字符串并把 PDF 作为字节返回，
+// 不落盘，便于 HTTP 响应直接下载；设置了 WithWriter 时该 writer 会被忽略
+func (p *PDFPaper) DrawHTMLBytes(html string) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := p._draw_pdf(&buf, html); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Alias 注册标签别名：把 aliasTag 渲染为 baseTag，并附加默认属性
@@ -145,7 +166,7 @@ func (p *PDFPaper) Var(name string, value any) {
 	p.vars[name] = value
 }
 
-func (p *PDFPaper) _draw_pdf(htmlstr string) error {
+func (p *PDFPaper) _draw_pdf(w io.Writer, htmlstr string) error {
 
 	// 读取<pdf>标签中的width和height
 	pdfNode, err := parseHtmlToPdfNode(htmlstr)
@@ -216,6 +237,14 @@ func (p *PDFPaper) _draw_pdf(htmlstr string) error {
 		return err
 	}
 
+	// 优先写到调用方传入的 writer；否则按 WithSavePath 写文件
+	if w != nil {
+		if err := pdf.Write(w); err != nil {
+			log.Print(err.Error())
+			return err
+		}
+		return nil
+	}
 	outPath, err := filepath.Abs(p.savePath)
 	if err != nil {
 		outPath = p.savePath

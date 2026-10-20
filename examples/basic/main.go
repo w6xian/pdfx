@@ -12,6 +12,8 @@ import (
 	"flag"
 	"fmt"
 	"html"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,6 +36,7 @@ func main() {
 	out := flag.String("o", "report_pdfx.pdf", "输出 PDF 路径")
 	dataFile := flag.String("data", "", "JSON 数据文件；留空使用样例数据")
 	assetDir := flag.String("assets", "assets", "素材目录")
+	addr := flag.String("http", "", "若指定，如 :8080，则启动 HTTP 服务直接把 PDF 作为下载返回；忽略 -o")
 	flag.Parse()
 
 	d := sampleData()
@@ -46,14 +49,87 @@ func main() {
 			panic(err)
 		}
 	}
+
+	if *addr != "" {
+		runHTTP(*addr, d, *assetDir)
+		return
+	}
+
 	if err := Render(*out, d, *assetDir); err != nil {
 		panic(err)
 	}
 	fmt.Println("已生成", *out)
 }
 
-// Render 渲染 HTML 模板并交给 pdfx 输出 PDF
-func Render(out string, d *Data, assetDir string) error {
+// runHTTP 启动 HTTP 服务，把渲染结果直接以 application/pdf 形式回写到响应，
+// 浏览器访问即可下载；演示 WithWriter / DrawHTMLBytes 两种内存输出方式
+func runHTTP(addr string, d *Data, assetDir string) {
+	mux := http.NewServeMux()
+
+	// 方式一：WithWriter 直接把 PDF 写进 http.ResponseWriter
+	mux.HandleFunc("/download/stream", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Header().Set("Content-Disposition", `attachment; filename="report.pdf"`)
+		if err := renderTo(w, d, assetDir); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	})
+
+	// 方式二：DrawHTMLBytes 一次性拿到字节，自己控制响应
+	mux.HandleFunc("/download/bytes", func(w http.ResponseWriter, r *http.Request) {
+		pdfBytes, err := renderBytes(d, assetDir)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Header().Set("Content-Disposition", `attachment; filename="report.pdf"`)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(pdfBytes)))
+		_, _ = w.Write(pdfBytes)
+	})
+
+	fmt.Printf("HTTP 已启动: http://localhost%s/download/stream  或 /download/bytes\n", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		panic(err)
+	}
+}
+
+// renderBytes 渲染并返回 PDF 字节
+func renderBytes(d *Data, assetDir string) ([]byte, error) {
+	tplHTML, song, hei, err := prepare(d, assetDir)
+	if err != nil {
+		return nil, err
+	}
+	p := pdfx.NewPDFPaper(
+		pdfx.WithStyle(pdfx.A4),
+		pdfx.WithFonts(
+			pdfx.NewFont("songti", song),
+			pdfx.NewFont("heiti", hei),
+		),
+	)
+	return p.DrawHTMLBytes(tplHTML)
+}
+
+// renderTo 把 PDF 渲染到指定 writer（如 *bytes.Buffer 或 http.ResponseWriter）
+func renderTo(w io.Writer, d *Data, assetDir string) error {
+	tplHTML, song, hei, err := prepare(d, assetDir)
+	if err != nil {
+		return err
+	}
+	p := pdfx.NewPDFPaper(
+		pdfx.WithStyle(pdfx.A4),
+		pdfx.WithWriter(w),
+		pdfx.WithFonts(
+			pdfx.NewFont("songti", song),
+			pdfx.NewFont("heiti", hei),
+		),
+	)
+	return p.DrawHTML(tplHTML)
+}
+
+// prepare 准备模板字符串、字体路径
+func prepare(d *Data, assetDir string) (tplHTML, song, hei string, err error) {
 	if strings.TrimSpace(d.Title) == "" {
 		d.Title = defTitle
 	}
@@ -76,22 +152,30 @@ func Render(out string, d *Data, assetDir string) error {
 		"esc": func(s string) string { return html.EscapeString(s) },
 	}).Parse(reportTpl)
 	if err != nil {
-		return err
+		return "", "", "", err
 	}
 	var buf bytes.Buffer
 	if err := tpl.Execute(&buf, v); err != nil {
-		return err
+		return "", "", "", err
 	}
 
-	song, err := findFont("simsun.ttc")
+	song, err = findFont("simsun.ttc")
+	if err != nil {
+		return "", "", "", err
+	}
+	hei, err = findFont("simhei.ttf")
+	if err != nil {
+		return "", "", "", err
+	}
+	return buf.String(), song, hei, nil
+}
+
+// Render 渲染 HTML 模板并交给 pdfx 输出 PDF
+func Render(out string, d *Data, assetDir string) error {
+	tplHTML, song, hei, err := prepare(d, assetDir)
 	if err != nil {
 		return err
 	}
-	hei, err := findFont("simhei.ttf")
-	if err != nil {
-		return err
-	}
-
 	p := pdfx.NewPDFPaper(
 		pdfx.WithSavePath(out),
 		pdfx.WithStyle(pdfx.A4),
@@ -101,7 +185,7 @@ func Render(out string, d *Data, assetDir string) error {
 		),
 	)
 	// p.Alias("small", "col", `align="center"`, `style="font-size:9px"`) // 自定义标签别名
-	return p.DrawHTML(buf.String())
+	return p.DrawHTML(tplHTML)
 }
 
 // findFont 在系统字体目录 / fonts / assets/fonts 中查找字体

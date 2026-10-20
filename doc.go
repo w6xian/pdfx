@@ -12,6 +12,12 @@
 //		return err
 //	}
 //
+// 输出到内存（HTTP 直接下载）：
+//
+//	data, err := p.DrawHTMLBytes(htmlStr)   // 返回 []byte，不落盘
+//	p2 := pdfx.NewPDFPaper(pdfx.WithWriter(w)) // 或指定 writer，如 http.ResponseWriter
+//	p2.DrawHTML(htmlStr)                    // 设置 WithWriter 后忽略 WithSavePath
+//
 // 渲染流程：
 //
 //	DrawHTML → parseHtmlToPdfNode（取出 <pdf> 根节点）
